@@ -1,0 +1,9 @@
+[project]
+name = "agent-that-sleeps"
+version = "0.1.0"
+description = "A stateful Strands agent that lives in a Lambda MicroVM and sleeps between conversations"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.40.0",
+    "requests>=2.32.0",
+]
