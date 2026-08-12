@@ -138,6 +138,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith(HOOK_PREFIX):
             hook = self.path[len(HOOK_PREFIX):]
             self._record(hook)
+            # /ready runs at image-build time: return 200 once the app is
+            # initialized so the snapshot is captured in a serving state.
             if hook == "run":
                 # Regenerate everything that must be unique per MicroVM:
                 # the snapshot froze module state at image build time.

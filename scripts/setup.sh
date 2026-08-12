@@ -55,6 +55,7 @@ aws lambda-microvms create-microvm-image \
   --build-role-arn "arn:aws:iam::$ACCOUNT_ID:role/agent-that-sleeps-build" \
   --hooks '{
     "port": 8080,
+    "microvmImageHooks": { "ready": "ENABLED", "readyTimeoutInSeconds": 60 },
     "microvmHooks": {
       "run": "ENABLED", "runTimeoutInSeconds": 30,
       "resume": "ENABLED", "suspend": "ENABLED"
