@@ -65,11 +65,24 @@ def read_notes() -> dict:
     return {p.name: p.read_text() for p in sorted(WORKSPACE.glob("*.md"))}
 
 
-agent = Agent(
-    model=BedrockModel(model_id="us.anthropic.claude-sonnet-5"),
-    system_prompt=SYSTEM_PROMPT,
-    tools=[write_note, read_notes],
-)
+# The agent is created lazily, on the first chat after launch, never at
+# module level. Anything constructed here would be frozen into the build
+# snapshot, and a boto3 client frozen at build time carries build-time
+# credentials (there is no execution role during the build). A client
+# created at runtime picks up the execution role and refreshes it as it
+# expires, which also covers resumes hours later.
+agent: Agent | None = None
+
+
+def get_agent() -> Agent:
+    global agent
+    if agent is None:
+        agent = Agent(
+            model=BedrockModel(model_id="us.anthropic.claude-sonnet-5"),
+            system_prompt=SYSTEM_PROMPT,
+            tools=[write_note, read_notes],
+        )
+    return agent
 
 
 def credential_source() -> str:
@@ -105,7 +118,7 @@ class Handler(BaseHTTPRequestHandler):
                 "run_id": STATE["run_id"],
                 "microvm_id": STATE["microvm_id"],
                 "process_uptime_s": round(time.time() - STATE["started_at"], 1),
-                "messages_in_memory": len(agent.messages),
+                "messages_in_memory": len(agent.messages) if agent else 0,
                 "notes_on_disk": sorted(p.name for p in WORKSPACE.glob("*.md")),
                 "credential_source": credential_source(),
                 "lifecycle_events": STATE["lifecycle_events"][-10:],
@@ -135,13 +148,20 @@ class Handler(BaseHTTPRequestHandler):
         if not message:
             return self._send(400, {"error": "message is required"})
         started = time.time()
-        result = agent(message)
+        try:
+            active = get_agent()
+            result = active(message)
+        except Exception as error:
+            import traceback
+
+            traceback.print_exc()
+            return self._send(500, {"error": f"{type(error).__name__}: {error}"})
         self._send(
             200,
             {
                 "reply": str(result),
                 "run_id": STATE["run_id"],
-                "messages_in_memory": len(agent.messages),
+                "messages_in_memory": len(active.messages),
                 "agent_seconds": round(time.time() - started, 2),
             },
         )
