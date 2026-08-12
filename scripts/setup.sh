@@ -45,11 +45,21 @@ aws s3 cp --only-show-errors /tmp/agent-that-sleeps.zip "s3://$BUCKET/app.zip"
 
 echo "==> create the MicroVM image (build + snapshot), timing it"
 BUILD_START=$(date +%s)
+# Lifecycle hooks are DISABLED by default; you opt in here, naming the port
+# the app listens on. Without this block, Lambda never calls /run or /resume,
+# it just starts forwarding traffic once the server is up.
 aws lambda-microvms create-microvm-image \
   --name "$IMAGE_NAME" \
   --code-artifact "uri=s3://$BUCKET/app.zip" \
   --base-image-arn "arn:aws:lambda:$REGION:aws:microvm-image:al2023-1" \
-  --build-role-arn "arn:aws:iam::$ACCOUNT_ID:role/agent-that-sleeps-build" >/dev/null
+  --build-role-arn "arn:aws:iam::$ACCOUNT_ID:role/agent-that-sleeps-build" \
+  --hooks '{
+    "port": 8080,
+    "microvmHooks": {
+      "run": "ENABLED", "runTimeoutInSeconds": 30,
+      "resume": "ENABLED", "suspend": "ENABLED"
+    }
+  }' >/dev/null
 
 # get-microvm-image wants the full ARN even though create takes a name
 IMAGE_ARN="arn:aws:lambda:$REGION:$ACCOUNT_ID:microvm-image:$IMAGE_NAME"

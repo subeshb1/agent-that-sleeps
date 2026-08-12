@@ -19,6 +19,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+# The OS process ID is the cleanest proof that suspend/resume preserves the
+# same running process: it survives a Firecracker snapshot restore and would
+# only change if the VM cold-restarted the application.
+PID = os.getpid()
+
 from strands import Agent, tool
 from strands.models.bedrock import BedrockModel
 
@@ -117,6 +122,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "run_id": STATE["run_id"],
                 "microvm_id": STATE["microvm_id"],
+                "pid": PID,
                 "process_uptime_s": round(time.time() - STATE["started_at"], 1),
                 "messages_in_memory": len(agent.messages) if agent else 0,
                 "notes_on_disk": sorted(p.name for p in WORKSPACE.glob("*.md")),
